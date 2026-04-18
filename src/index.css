@@ -1,0 +1,91 @@
+@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Shrikhand&display=swap");
+
+@font-face {
+  font-family: "Graphik";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/GraphikRegular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Graphik";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/GraphikMedium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Graphik";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/GraphikSemibold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Graphik";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/GraphikBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Graphik";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/GraphikSuper.woff2") format("woff2");
+}
+
+@theme {
+  --font-sans:
+    "Graphik", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif:
+    "Playfair Display", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-silly: "Shrikhand", "Comic Sans MS", cursive;
+
+  --animate-emoji-rain: emoji-rain var(--emoji-rain-duration, 3s) linear both;
+
+  --color-bg: #121110;
+  --color-fg: #f1ece2;
+  --color-fg-soft: #e8e2d6;
+  --color-card: #1d1b18;
+  --color-card-2: #2a2724;
+  --color-accent: #e85a3c;
+  --color-mute: #7c7669;
+  --color-mute-2: #5c564c;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+}
+
+@keyframes emoji-rain {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--start-rot, 0deg));
+    opacity: 0;
+  }
+  5% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), -130vh, 0)
+      rotate(calc(var(--start-rot, 0deg) + var(--spin, 0deg)));
+    opacity: 0;
+  }
+}
