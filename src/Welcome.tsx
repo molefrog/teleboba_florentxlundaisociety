@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { useLocation } from "wouter";
-import { Check, Mic } from "react-feather";
+import { Check } from "react-feather";
 import { cn } from "./lib/cn";
+import { Boba } from "./boba";
 
 type TemperamentId = "playful" | "lecture" | "corporate" | "improv";
 
@@ -68,53 +70,42 @@ export function Welcome() {
 
   return (
     <div className="flex min-h-screen flex-col bg-bg text-fg">
-      {/* Brand */}
-      <header className="flex items-center justify-center px-12 py-7">
-        <div className="flex items-center gap-2.5">
-          <div className="grid size-[18px] place-items-center rounded-full bg-accent">
-            <div className="size-[5px] rounded-full bg-bg" />
-          </div>
-          <div className="text-xs leading-4 font-medium tracking-[0.16em] text-fg uppercase">
-            teleprompter
-          </div>
-          <div className="ml-1 text-[11px] leading-[14px] tracking-[0.08em] text-mute">
-            v0.1
-          </div>
-        </div>
-      </header>
+      {/* Title — sits at the top, slightly clipped by the viewport edge.
+          Letters are windows onto a looping gif via background-clip. */}
+      <h1
+        className="mx-auto -mt-[0.8vw] w-full bg-cover bg-center bg-clip-text text-center text-[15.5vw] leading-[0.85] font-semibold tracking-[-0.04em] text-transparent uppercase"
+        style={{ backgroundImage: "url(/giphy.gif)" }}
+      >
+        Teleboba
+      </h1>
 
-      {/* Hero CTA */}
-      <main className="flex flex-1 flex-col items-center justify-center gap-9 px-16">
+      {/* Hero CTA — the Boba is the button */}
+      <main className="flex flex-col items-center justify-center gap-10 px-16 py-10">
         <button
           onClick={begin}
-          className={cn(
-            "grid size-28 cursor-pointer place-items-center rounded-full bg-accent transition-transform",
-            "shadow-[inset_0_-5px_0_#0000002e,0_12px_48px_#e85a3c61]",
-            "hover:scale-105 active:scale-95",
-          )}
           aria-label="start speaking"
+          className="cursor-pointer transition-transform hover:scale-105 active:scale-95"
         >
-          <Mic size={44} strokeWidth={2} className="text-fg" />
+          <motion.div layoutId="boba" className="size-[220px]">
+            <Boba state="sleeping" size={220} />
+          </motion.div>
         </button>
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="text-xl leading-6 font-medium text-fg">
-            Tap to start speaking
-          </div>
-          <div className="text-[13px] leading-4 text-mute">
-            or press Space to begin
-          </div>
+
+        <div className="flex max-w-[680px] flex-col items-center gap-3 text-center">
+          <h2 className="text-4xl leading-[1.15] font-semibold tracking-[-0.02em] text-fg text-balance">
+            I'm Teleboba, your presentation helper.
+          </h2>
+          <p className="text-[clamp(1.125rem,1.4vw,1.375rem)] leading-[1.4] text-mute">
+            Don't have slides? I got you bro. Just wake me up.
+          </p>
         </div>
       </main>
 
       {/* Temperament picker */}
-      <section className="flex flex-col items-center gap-[18px] px-16 pb-14">
-        <div className="flex items-center gap-3.5">
-          <Axis label="fun" />
-          <div className="h-px w-44 shrink-0 bg-fg/15" />
-          <Axis label="pick a temperament" />
-          <div className="h-px w-44 shrink-0 bg-fg/15" />
-          <Axis label="professional" />
-        </div>
+      <section className="flex flex-col items-center gap-6 px-16 pb-14 pt-8">
+        <h3 className="text-xl leading-[1.1] font-medium tracking-[-0.02em] text-fg">
+          Pick a temperament
+        </h3>
 
         <div className="flex w-full max-w-[960px] gap-3">
           {TEMPERAMENTS.map((t) => (
@@ -127,14 +118,6 @@ export function Welcome() {
           ))}
         </div>
       </section>
-    </div>
-  );
-}
-
-function Axis({ label }: { label: string }) {
-  return (
-    <div className="text-[11px] leading-[14px] font-medium tracking-[0.22em] text-mute uppercase">
-      {label}
     </div>
   );
 }
@@ -184,12 +167,7 @@ function TemperamentCard({
         >
           {temperament.name}
         </div>
-        <div
-          className={cn(
-            "text-xs leading-[17px]",
-            selected ? "text-bg/70" : "text-fg/65",
-          )}
-        >
+        <div className={cn("text-xs leading-[17px]", selected ? "text-bg/70" : "text-fg/65")}>
           {temperament.description}
         </div>
       </div>

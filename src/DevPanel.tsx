@@ -39,7 +39,7 @@ export function useDevSlide() {
   }, []);
 
   const { mode } = useControls("Source", {
-    mode: { value: "fake", options: ["fake", "real"] as const },
+    mode: { value: "real", options: ["real", "fake"] as const },
   });
 
   const content = useControls("Content", {

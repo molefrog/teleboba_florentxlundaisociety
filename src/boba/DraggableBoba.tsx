@@ -51,7 +51,9 @@ export function DraggableBoba({
           dragging ? "cursor-grabbing" : "cursor-grab",
         )}
       >
-        <Boba state={state} size={size} />
+        <motion.div layoutId="boba" className="size-full">
+          <Boba state={state} size={size} />
+        </motion.div>
         {children}
       </motion.div>
     </div>

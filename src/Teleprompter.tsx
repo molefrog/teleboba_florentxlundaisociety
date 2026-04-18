@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import NumberFlow from "@number-flow/react";
 import { motion } from "motion/react";
 import { useLocation } from "wouter";
@@ -6,10 +6,23 @@ import { Menu, Pause, Play, X } from "react-feather";
 import { cn } from "./lib/cn";
 import { DevPanelUI, useDevSlide } from "./DevPanel";
 import { SlideRenderer } from "./slide/SlideRenderer";
-import type { Slide } from "./slide/types";
-import { DraggableBoba } from "./boba";
-import { startRealtime, type RealtimeSession } from "./realtime";
+import {
+  EMPTY_SLIDE,
+  type AlternativeItem,
+  type ContentSpec,
+  type Slide,
+  type TextFont,
+  type TimelinePoint,
+} from "./slide/types";
+import { DraggableBoba, type BobaState } from "./boba";
+import {
+  startRealtime,
+  type RealtimeConfig,
+  type RealtimeSession,
+} from "./realtime";
 import { TranscriptSidebar, type TranscriptEntry } from "./Transcript";
+import { searchMedia } from "./media/searchMedia";
+import { playSfx } from "./sfx";
 
 const SIDEBAR_WIDTH = 380;
 
@@ -24,11 +37,20 @@ export function Teleprompter() {
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [realPhrase, setRealPhrase] = useState("");
+  const [realSlide, setRealSlide] = useState<Slide>(EMPTY_SLIDE);
+  const [bobaOverride, setBobaOverride] = useState<BobaState | null>(null);
+  const emojiRainTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bobaLaughTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerBobaLaugh = useCallback(() => {
+    setBobaOverride("laughing");
+    if (bobaLaughTimer.current) clearTimeout(bobaLaughTimer.current);
+    bobaLaughTimer.current = setTimeout(() => setBobaOverride(null), 5000);
+  }, []);
   const temperament =
-    (typeof localStorage !== "undefined" &&
+    ((typeof localStorage !== "undefined" &&
       localStorage.getItem("teleprompter:temperament")) ||
-    "playful";
+      "playful") as RealtimeConfig["temperament"];
 
   const { slide: devSlide, mode, hidden } = useDevSlide();
 
@@ -39,18 +61,76 @@ export function Teleprompter() {
     return () => clearInterval(t);
   }, [startedAt]);
 
+  const dispatchTool = async (name: string, raw: unknown) => {
+    const args = (raw ?? {}) as Record<string, unknown>;
+    switch (name) {
+      case "show_text":
+      case "show_timeline":
+      case "show_alternatives": {
+        const nextContent = buildContent(name, args);
+        if (!nextContent) return { ok: false, error: "bad args" };
+        setRealSlide((prev) => ({
+          ...prev,
+          content: nextContent,
+          background:
+            prev.content.type !== nextContent.type
+              ? { type: "none" }
+              : prev.background,
+        }));
+        return { ok: true };
+      }
+      case "set_background": {
+        const type = args.type === "gif" ? "gif" : "image";
+        const query = typeof args.query === "string" ? args.query : "";
+        const resolved = await searchMedia({ type, query });
+        if (!resolved) return { ok: false, error: "no media" };
+        setRealSlide((prev) => ({
+          ...prev,
+          background: { type: resolved.kind, url: resolved.url, dim: 0.65 },
+        }));
+        return { ok: true, url: resolved.url };
+      }
+      case "clear_background":
+        setRealSlide((prev) => ({ ...prev, background: { type: "none" } }));
+        return { ok: true };
+      case "emoji_rain": {
+        const str = typeof args.emojis === "string" ? args.emojis : "✨🎉";
+        const emojis = Array.from(str).filter((c) => c.trim());
+        if (emojis.length === 0) return { ok: false, error: "no emojis" };
+        const density =
+          typeof args.density === "number"
+            ? Math.max(10, Math.min(120, Math.round(args.density)))
+            : 40;
+        setRealSlide((prev) => ({
+          ...prev,
+          effect: { type: "emoji-rain", emojis, density },
+        }));
+        if (emojiRainTimer.current) clearTimeout(emojiRainTimer.current);
+        emojiRainTimer.current = setTimeout(() => {
+          setRealSlide((prev) => ({ ...prev, effect: { type: "none" } }));
+        }, 5000);
+        triggerBobaLaugh();
+        return { ok: true };
+      }
+      case "play_sfx": {
+        const sfxName = typeof args.name === "string" ? args.name : "";
+        playSfx(sfxName);
+        triggerBobaLaugh();
+        return { ok: true };
+      }
+      case "no_op":
+        return { ok: true };
+      default:
+        return { ok: false, error: `unknown tool ${name}` };
+    }
+  };
+
   const handleStart = async () => {
     setError("");
     setStarting(true);
     try {
       const s = await startRealtime(
-        async (name, args) => {
-          if (name === "display_keyphrase") {
-            const text = (args as { text?: string })?.text?.trim();
-            if (text) setRealPhrase(text);
-          }
-          return { ok: true };
-        },
+        dispatchTool,
         setStatus,
         (text, final) => {
           if (final) {
@@ -66,6 +146,7 @@ export function Teleprompter() {
             setPartial((prev) => prev + text);
           }
         },
+        { temperament },
       );
       setSession(s);
       setStartedAt(Date.now());
@@ -111,22 +192,13 @@ export function Teleprompter() {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
 
-  const bobaBaseState = session || starting ? "listening" : "sleeping";
+  const active = Boolean(session) || starting;
+  const bobaBaseState: BobaState =
+    bobaOverride ?? (active ? "listening" : "sleeping");
 
-  // Merge: in fake mode everything comes from Leva; in real mode, the
-  // current phrase from realtime drives a text content; bg/fx still from
-  // Leva (no realtime tools for those yet).
-  const slide: Slide =
-    mode === "fake"
-      ? devSlide
-      : {
-          ...devSlide,
-          content: realPhrase
-            ? { type: "text", text: realPhrase }
-            : devSlide.content,
-        };
-
-  const placeholder = live ? "listening" : "invent the future";
+  // fake mode → Leva drives the whole slide. real mode → tool dispatcher
+  // drives it. No cross-mode mixing.
+  const slide: Slide = mode === "fake" ? devSlide : realSlide;
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-bg text-fg">
@@ -135,7 +207,7 @@ export function Teleprompter() {
         transition={{ type: "spring", stiffness: 380, damping: 38 }}
         className="relative min-h-screen overflow-clip"
       >
-      <SlideRenderer slide={slide} placeholder={placeholder} />
+      <SlideRenderer slide={slide} />
 
       {/* Top-left: session controls */}
       <div className="absolute top-7 left-7 z-30 flex items-center gap-2.5">
@@ -183,12 +255,12 @@ export function Teleprompter() {
       {/* Draggable Boba with play/pause dock */}
       <DraggableBoba baseState={bobaBaseState}>
         <button
-          onClick={session ? handleStop : handleStart}
+          onClick={active ? handleStop : handleStart}
           onPointerDown={(e) => e.stopPropagation()}
-          aria-label={session ? "pause" : "play"}
+          aria-label={active ? "pause" : "play"}
           className="absolute right-0 bottom-0 grid size-14 cursor-pointer place-items-center rounded-full border border-[#1211100F] bg-fg-soft text-bg shadow-md shadow-black/40 transition-all hover:bg-fg hover:shadow-lg active:scale-95"
         >
-          {session ? (
+          {active ? (
             <Pause size={22} strokeWidth={1.6} fill="currentColor" />
           ) : (
             <Play size={22} strokeWidth={1.6} fill="currentColor" />
@@ -248,5 +320,52 @@ function Pill({
       {children}
     </div>
   );
+}
+
+function buildContent(
+  name: "show_text" | "show_timeline" | "show_alternatives",
+  args: Record<string, unknown>,
+): ContentSpec | null {
+  if (name === "show_text") {
+    const text = typeof args.text === "string" ? args.text.trim() : "";
+    if (!text) return null;
+    const font: TextFont =
+      args.font === "serif" || args.font === "silly" ? args.font : "default";
+    return { type: "text", text, font };
+  }
+  if (name === "show_timeline") {
+    const points = Array.isArray(args.points)
+      ? (args.points as Array<Record<string, unknown>>)
+          .map<TimelinePoint | null>((p) => {
+            const title = typeof p.title === "string" ? p.title.trim() : "";
+            if (!title) return null;
+            const caption =
+              typeof p.caption === "string" && p.caption.trim()
+                ? p.caption.trim()
+                : undefined;
+            return { title, caption };
+          })
+          .filter((p): p is TimelinePoint => p !== null)
+      : [];
+    if (points.length < 2) return null;
+    return { type: "timeline", points };
+  }
+  // show_alternatives
+  const items = Array.isArray(args.items)
+    ? (args.items as Array<Record<string, unknown>>)
+        .map<AlternativeItem | null>((i) => {
+          const title = typeof i.title === "string" ? i.title.trim() : "";
+          const text = typeof i.text === "string" ? i.text.trim() : "";
+          if (!title || !text) return null;
+          return { title, text };
+        })
+        .filter((i): i is AlternativeItem => i !== null)
+    : [];
+  if (items.length < 2) return null;
+  const selected =
+    typeof args.selected === "string" && args.selected.trim()
+      ? args.selected.trim()
+      : undefined;
+  return { type: "alternatives", items, selected };
 }
 
