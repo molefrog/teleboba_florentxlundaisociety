@@ -18,8 +18,10 @@ app.get("/api/giphy", async (c) => {
   const cacheKey = `${q}:${limit}`;
   const cached = giphyCache.get(cacheKey);
   if (cached && Date.now() - cached.at < GIPHY_TTL_MS) {
+    console.log(`[giphy] CACHE HIT  "${q}"`);
     return c.json({ cached: true, ...(cached.data as object) });
   }
+  console.log(`[giphy] MISS       "${q}" → upstream`);
 
   const url = new URL("https://api.giphy.com/v1/gifs/search");
   url.searchParams.set("api_key", key);
@@ -28,8 +30,13 @@ app.get("/api/giphy", async (c) => {
   url.searchParams.set("rating", "pg-13");
 
   const r = await fetch(url);
-  if (!r.ok) return c.json({ error: "upstream", status: r.status, body: await r.text() }, 500);
+  if (!r.ok) {
+    const body = await r.text();
+    console.log(`[giphy] UPSTREAM ERR "${q}" → ${r.status} ${body.slice(0, 120)}`);
+    return c.json({ error: "upstream", status: r.status, body }, 500);
+  }
   const json = (await r.json()) as { data: any[]; meta: unknown; pagination: unknown };
+  console.log(`[giphy] OK         "${q}" → ${json.data?.length ?? 0} items`);
 
   const normalized = {
     query: q,
@@ -80,24 +87,35 @@ app.get("/api/brave/images", async (c) => {
   const cacheKey = `${q}:${count}`;
   const cached = braveCache.get(cacheKey);
   if (cached && Date.now() - cached.at < BRAVE_TTL_MS) {
+    console.log(`[brave] CACHE HIT  "${q}"`);
     return c.json({ cached: true, ...(cached.data as object) });
   }
-
-  await queueBraveSlot();
+  console.log(`[brave] MISS       "${q}" → upstream (queued)`);
 
   const url = new URL("https://api.search.brave.com/res/v1/images/search");
   url.searchParams.set("q", q);
   url.searchParams.set("count", count);
   url.searchParams.set("safesearch", "strict");
+  const headers = {
+    Accept: "application/json",
+    "X-Subscription-Token": key,
+  };
 
-  const r = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": key,
-    },
-  });
-  if (!r.ok) return c.json({ error: "upstream", status: r.status, body: await r.text() }, 500);
+  await queueBraveSlot();
+  let r = await fetch(url, { headers });
+  if (r.status === 429) {
+    console.log(`[brave] 429        "${q}" → retrying after spacing`);
+    await new Promise((res) => setTimeout(res, BRAVE_SPACING_MS));
+    braveLastAt = Date.now();
+    r = await fetch(url, { headers });
+  }
+  if (!r.ok) {
+    const body = await r.text();
+    console.log(`[brave] UPSTREAM ERR "${q}" → ${r.status} ${body.slice(0, 120)}`);
+    return c.json({ error: "upstream", status: r.status, body }, 500);
+  }
   const json = (await r.json()) as { results?: any[] };
+  console.log(`[brave] OK         "${q}" → ${json.results?.length ?? 0} items`);
 
   const normalized = {
     query: q,

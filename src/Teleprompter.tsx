@@ -79,8 +79,12 @@ export function Teleprompter() {
       case "set_background": {
         const type = args.type === "gif" ? "gif" : "image";
         const query = typeof args.query === "string" ? args.query : "";
+        console.log(`[tool] set_background  type=${type} query="${query}"`);
         const resolved = await searchMedia({ type, query });
-        if (!resolved) return { ok: false, error: "no media" };
+        if (!resolved) {
+          console.log(`[tool] set_background  FAILED → no media for "${query}"`);
+          return { ok: false, error: "no media" };
+        }
         setRealSlide((prev) => ({
           ...prev,
           background: { type: resolved.kind, url: resolved.url, dim: 0.65 },

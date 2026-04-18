@@ -36,7 +36,7 @@ export function Timeline({ points }: { points: TimelinePoint[] }) {
           {p.caption && (
             <motion.div
               layout="position"
-              className="max-w-[220px] text-center text-[15px] leading-[1.5] text-mute"
+              className="max-w-[260px] text-center text-[19px] leading-[1.4] font-medium text-fg"
             >
               {p.caption}
             </motion.div>

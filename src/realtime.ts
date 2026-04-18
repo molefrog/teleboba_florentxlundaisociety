@@ -207,6 +207,13 @@ TWO INDEPENDENT LAYERS
 - Layer B = background: set_background / clear_background. Unaffected by Layer A changes.
 - Updating A does not touch B, and vice versa. If the topic persists but the headline changes, call show_text again WITHOUT touching the background.
 
+BACKGROUND MUST TRACK THE SUBJECT — be proactive, not sticky
+- The background is a LIVE illustration of what the speaker is currently talking about. If they move to a new subject and the background still shows the old subject, that is a BUG.
+- Every time the SUBJECT noun changes (from "our founders" to "the product", from "Tokyo" to "Berlin", from "finance" to "sales"), fire set_background again with a fresh query matching the new subject.
+- Default aggressiveness: assume a new background is needed unless the speaker is clearly still on the same subject. When uncertain, CHANGE IT.
+- Don't wait for a "pillar" or "chapter" break — a topical shift within one paragraph is enough. "We built it in Berlin, but then we scaled to Tokyo" → set_background("berlin") then set_background("tokyo").
+- Do NOT repeat set_background with the same query back-to-back. Only fire a new call when the query genuinely changes.
+
 CONTENT HIERARCHY (critical — avoid thrash)
 - show_timeline and show_alternatives are RICH displays. When you show one, COMMIT to it. Hold it for several speaker clauses, NOT seconds.
 - While a timeline/alternatives is on screen:
@@ -224,8 +231,8 @@ WHEN TO FIRE
 - show_text: speaker just landed a memorable point, definition, insight, or takeaway.
 - show_timeline: speaker narrates a sequence ("first… then… finally…", steps, phases). Add points as they come.
 - show_alternatives: speaker compares options / lists choices. Set \`selected\` only when they commit.
-- set_background: establish a thematic visual. Change only when the TOPIC itself shifts, not per-sentence.
-- clear_background: mood shift, nothing fits.
+- set_background: track the current subject actively. Update whenever the subject noun changes. Be proactive, not conservative.
+- clear_background: rarely — only when the conversation has clearly moved to something abstract or meta that no visual would fit.
 - emoji_rain / play_sfx: PEAKS only — jokes landing, celebrations, failures, reveals. Never back-to-back (unless the current trait overrides this).
 - no_op: default when in doubt.
 

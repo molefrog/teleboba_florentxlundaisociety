@@ -34,37 +34,51 @@ export async function searchMedia({
 
   const key = cacheKey(type, trimmed);
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    console.log(`[media] client-cache HIT  ${type} "${trimmed}" → ${hit.url.slice(0, 80)}`);
+    return hit;
+  }
 
   try {
     if (type === "gif") {
-      const r = await fetch(
-        `/api/giphy?q=${encodeURIComponent(trimmed)}&limit=5`,
-      );
-      if (!r.ok) return null;
+      const r = await fetch(`/api/giphy?q=${encodeURIComponent(trimmed)}&limit=5`);
+      if (!r.ok) {
+        console.log(`[media] gif FAIL "${trimmed}" → ${r.status}`);
+        return null;
+      }
       const j = await r.json();
-      const first = (j.items ?? []).find(
-        (i: { mp4?: string }) => !!i.mp4,
-      ) as { mp4?: string } | undefined;
-      if (!first?.mp4) return null;
+      const first = (j.items ?? []).find((i: { mp4?: string }) => !!i.mp4) as
+        | { mp4?: string }
+        | undefined;
+      if (!first?.mp4) {
+        console.log(`[media] gif NO-MP4 "${trimmed}" (${j.items?.length ?? 0} items)`);
+        return null;
+      }
       const resolved: ResolvedMedia = { kind: "video", url: first.mp4 };
+      console.log(`[media] gif OK    "${trimmed}" → ${resolved.url.slice(0, 80)}`);
       remember(key, resolved);
       return resolved;
     }
 
-    const r = await fetch(
-      `/api/brave/images?q=${encodeURIComponent(trimmed)}&count=10`,
-    );
-    if (!r.ok) return null;
+    const r = await fetch(`/api/brave/images?q=${encodeURIComponent(trimmed)}&count=10`);
+    if (!r.ok) {
+      console.log(`[media] img FAIL "${trimmed}" → ${r.status}`);
+      return null;
+    }
     const j = await r.json();
-    const first = (j.items ?? []).find(
-      (i: { image?: string }) => !!i.image,
-    ) as { image?: string } | undefined;
-    if (!first?.image) return null;
+    const first = (j.items ?? []).find((i: { image?: string }) => !!i.image) as
+      | { image?: string }
+      | undefined;
+    if (!first?.image) {
+      console.log(`[media] img NO-URL "${trimmed}" (${j.items?.length ?? 0} items)`);
+      return null;
+    }
     const resolved: ResolvedMedia = { kind: "image", url: first.image };
+    console.log(`[media] img OK    "${trimmed}" → ${resolved.url.slice(0, 80)}`);
     remember(key, resolved);
     return resolved;
-  } catch {
+  } catch (e) {
+    console.log(`[media] exception ${type} "${trimmed}"`, e);
     return null;
   }
 }
