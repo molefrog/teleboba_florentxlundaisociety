@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;1,400&family=Shrikhand&display=swap");
+@import "tailwindcss";
 
 @font-face {
   font-family: "Graphik";

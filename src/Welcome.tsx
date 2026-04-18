@@ -138,7 +138,12 @@ function TraitCard({
         >
           {trait.name}
         </div>
-        <div className={cn("text-xs leading-[17px]", selected ? "text-bg/70" : "text-fg/65")}>
+        <div
+          className={cn(
+            "text-base leading-snug",
+            selected ? "text-bg/75" : "text-fg/70",
+          )}
+        >
           {trait.desc}
         </div>
       </div>
