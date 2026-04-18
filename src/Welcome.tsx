@@ -4,54 +4,22 @@ import { useLocation } from "wouter";
 import { Check } from "react-feather";
 import { cn } from "./lib/cn";
 import { Boba } from "./boba";
-
-type TemperamentId = "playful" | "lecture" | "corporate" | "improv";
-
-interface Temperament {
-  id: TemperamentId;
-  index: string;
-  name: string;
-  description: string;
-}
-
-const TEMPERAMENTS: Temperament[] = [
-  {
-    id: "playful",
-    index: "01",
-    name: "Playful",
-    description: "Max gifs, emoji bursts, memes. Chaos cinema.",
-  },
-  {
-    id: "lecture",
-    index: "02",
-    name: "Lecture",
-    description: "Diagrams, quotes, reference images. Whiteboard-adjacent.",
-  },
-  {
-    id: "corporate",
-    index: "03",
-    name: "Corporate",
-    description: "Charts and tasteful stock. Less effects, more appropriate.",
-  },
-  {
-    id: "improv",
-    index: "04",
-    name: "Improv",
-    description: "Context-aware absurdism. Good for stand-up and storytelling.",
-  },
-];
-
-const STORAGE_KEY = "teleprompter:temperament";
+import { getSavedTraitId, loadTraits, saveTraitId, type Trait } from "./traits";
 
 export function Welcome() {
   const [, setLocation] = useLocation();
-  const [selected, setSelected] = useState<TemperamentId>(() => {
-    if (typeof localStorage === "undefined") return "playful";
-    return (localStorage.getItem(STORAGE_KEY) as TemperamentId) || "playful";
-  });
+  const [traits, setTraits] = useState<Trait[]>([]);
+  const [selected, setSelected] = useState<string | null>(() => getSavedTraitId());
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, selected);
+    loadTraits().then((list) => {
+      setTraits(list);
+      setSelected((prev) => (prev && list.some((t) => t.id === prev) ? prev : list[0]?.id ?? null));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selected) saveTraitId(selected);
   }, [selected]);
 
   const begin = () => setLocation("/prompter");
@@ -108,10 +76,11 @@ export function Welcome() {
         </h3>
 
         <div className="flex w-full max-w-[960px] gap-3">
-          {TEMPERAMENTS.map((t) => (
-            <TemperamentCard
+          {traits.map((t, i) => (
+            <TraitCard
               key={t.id}
-              temperament={t}
+              trait={t}
+              index={String(i + 1).padStart(2, "0")}
               selected={selected === t.id}
               onSelect={() => setSelected(t.id)}
             />
@@ -122,12 +91,14 @@ export function Welcome() {
   );
 }
 
-function TemperamentCard({
-  temperament,
+function TraitCard({
+  trait,
+  index,
   selected,
   onSelect,
 }: {
-  temperament: Temperament;
+  trait: Trait;
+  index: string;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -148,7 +119,7 @@ function TemperamentCard({
             selected ? "text-bg/65" : "text-mute",
           )}
         >
-          {selected ? `${temperament.index} · selected` : temperament.index}
+          {selected ? `${index} · selected` : index}
         </div>
         {selected ? (
           <div className="grid size-4 place-items-center rounded-full bg-bg">
@@ -165,10 +136,10 @@ function TemperamentCard({
             selected ? "text-bg" : "text-fg",
           )}
         >
-          {temperament.name}
+          {trait.name}
         </div>
         <div className={cn("text-xs leading-[17px]", selected ? "text-bg/70" : "text-fg/65")}>
-          {temperament.description}
+          {trait.desc}
         </div>
       </div>
     </button>

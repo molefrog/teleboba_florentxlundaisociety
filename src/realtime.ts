@@ -6,7 +6,10 @@ export interface RealtimeSession {
 }
 
 export interface RealtimeConfig {
-  temperament?: "playful" | "lecture" | "corporate" | "improv";
+  /** Full trait instruction block — injected verbatim into the agent prompt. */
+  traitInstruction?: string;
+  /** Trait name (for logging / display). */
+  traitName?: string;
 }
 
 const MODEL = "gpt-realtime-1.5";
@@ -108,7 +111,7 @@ const TOOLS = [
     type: "function",
     name: "set_background",
     description:
-      "Set a full-screen thematic background behind the content. The background stays until you call set_background again OR until the content TYPE changes (text→timeline, etc). Use for atmospheric illustration of the current topic. Keep queries 1–3 concrete words.",
+      "Set a full-screen thematic background behind the content. Background and content are INDEPENDENT layers: changing show_text/show_timeline/show_alternatives does NOT affect the background. The background persists until you call set_background OR clear_background again. Use for atmospheric illustration of the current topic. Keep queries 1–3 concrete words.",
     parameters: {
       type: "object",
       properties: {
@@ -176,45 +179,58 @@ const TOOLS = [
     type: "function",
     name: "no_op",
     description:
-      "Explicit no-op. Use when the current speech is filler, connective tissue, or has no actionable visual yet. PREFER this over forcing a tool call.",
+      "Explicit do-nothing. Call this (and ONLY this) when the current speech chunk is filler/connective/ambiguous and no other tool genuinely fits. Holding the existing slide is the right move; stay silent visually.",
     parameters: { type: "object", properties: {} },
   },
 ];
 
-const TEMPERAMENT_NOTES: Record<string, string> = {
-  playful:
-    "Temperament: PLAYFUL. Lean into silly fonts, gifs, emoji_rain, sfx. Chaos cinema. Bias toward kinetic backgrounds.",
-  lecture:
-    "Temperament: LECTURE. Serious and educational. Favor timeline and alternatives. Serif or default fonts. Minimal sfx/emoji. Image backgrounds (whiteboard, reference photos) over gifs.",
-  corporate:
-    "Temperament: CORPORATE. Tasteful and restrained. Default font. Stock-photo-style image backgrounds. Almost no sfx or emoji_rain. Clean timelines and comparisons.",
-  improv:
-    "Temperament: IMPROV. Unhinged, context-aware absurdism. Silly font often, surprise sfx, emoji_rain for laughs, gif backgrounds for visual jokes.",
-};
+const DEFAULT_TRAIT_NOTE =
+  "Temperament: DEFAULT. Balanced, tasteful, moderate use of every tool.";
 
-function buildInstructions(temperament?: string): string {
-  const tempLine = TEMPERAMENT_NOTES[temperament ?? "playful"] ?? TEMPERAMENT_NOTES.playful;
-  return `You are a silent visual companion to a live presenter. You NEVER produce prose or spoken text. Your only purpose is to project visual context on screen as the presenter speaks.
+function buildInstructions(traitInstruction?: string, traitName?: string): string {
+  const traitBlock = (traitInstruction ?? DEFAULT_TRAIT_NOTE).trim();
+  const nameLine = traitName
+    ? `The user picked the "${traitName}" trait for this session. Treat it as a HARD directive, not a suggestion.`
+    : "";
+  return `ROLE
+- You are a silent visual director for a live presenter.
+- Output is TOOL CALLS ONLY. Never prose, never speech.
+- Every turn must call exactly one of: show_text, show_timeline, show_alternatives, set_background, clear_background, emoji_rain, play_sfx, no_op.
 
-Listen to each clause. When you hear a KEY CONCEPT worth surfacing as a slide, call the appropriate tool. Otherwise call no_op. This is a dynamic slide deck, not live captions.
+TIMING
+- React in real time. Turns chunk every ~200ms; treat each chunk as a cue.
+- You MAY call multiple tools in ONE turn when they belong together (e.g. show_text + play_sfx, set_background + show_timeline). Prefer parallel over sequential.
+- When the current chunk is filler / um-ah / connective / ambiguous, call no_op. Do not invent content.
 
-GOLDEN RULE FOR TEXT: show_text holds KEY CONCEPTS, not singular words. Think slide headlines for a talk — "Ship before you're ready" not "ship". "Three things went wrong" not "wrong". 1–8 words or one short sentence.
+TWO INDEPENDENT LAYERS
+- Layer A = content: show_text / show_timeline / show_alternatives. Only ONE content spec is on screen at a time — calling any of these REPLACES the current one.
+- Layer B = background: set_background / clear_background. Unaffected by Layer A changes.
+- Updating A does not touch B, and vice versa. If the topic persists but the headline changes, call show_text again WITHOUT touching the background.
 
-WHEN TO USE EACH TOOL:
-- show_text: the speaker just made a memorable point, definition, or takeaway.
-- show_timeline: the speaker is narrating a sequence ("first… then… finally…", steps, phases).
-- show_alternatives: the speaker is comparing options / listing choices / weighing approaches.
-- set_background: you want a thematic visual to sit behind future slides. Let it ride across same-type updates. Don't change it every slide.
-- clear_background: the current bg doesn't fit anymore.
-- emoji_rain / play_sfx: PUNCTUATION. Peaks only — jokes landing, celebrations, failures, reveals. Never back-to-back.
-- no_op: filler speech, throat-clearing, transitions. Prefer this over noise.
+CONTENT HIERARCHY (critical — avoid thrash)
+- show_timeline and show_alternatives are RICH displays. When you show one, COMMIT to it. Hold it for several speaker clauses, NOT seconds.
+- While a timeline/alternatives is on screen:
+  - PREFER updating the same tool (add points, set \`selected\`) as the speaker elaborates.
+  - DO NOT replace it with show_text unless the speaker clearly moves to a NEW topic.
+  - A stray catchy phrase is NOT a reason to clobber a timeline — stay on no_op instead.
+- show_text is lighter. Replacing show_text with another show_text is fine and expected.
 
-${tempLine}
+TEXT RULES
+- show_text holds KEY CONCEPTS, not single words. Think slide headlines: "Ship before you're ready" not "ship". "Three things went wrong" not "wrong".
+- 1–8 words or one short sentence. ≤ 90 chars.
+- Never fire the same tool with the same payload twice in a row.
 
-Hard rules:
-- NEVER speak or produce prose. Tools only.
-- Do not fire tools redundantly for the same idea in a row.
-- Text captures ideas, not nouns. When in doubt, no_op.`;
+WHEN TO FIRE
+- show_text: speaker just landed a memorable point, definition, insight, or takeaway.
+- show_timeline: speaker narrates a sequence ("first… then… finally…", steps, phases). Add points as they come.
+- show_alternatives: speaker compares options / lists choices. Set \`selected\` only when they commit.
+- set_background: establish a thematic visual. Change only when the TOPIC itself shifts, not per-sentence.
+- clear_background: mood shift, nothing fits.
+- emoji_rain / play_sfx: PEAKS only — jokes landing, celebrations, failures, reveals. Never back-to-back (unless the current trait overrides this).
+- no_op: default when in doubt.
+
+${nameLine}
+${traitBlock}`;
 }
 
 export async function startRealtime(
@@ -252,15 +268,15 @@ export async function startRealtime(
         output_modalities: ["text"],
         tool_choice: "required",
         tools: TOOLS,
-        instructions: buildInstructions(config.temperament),
+        instructions: buildInstructions(config.traitInstruction, config.traitName),
         audio: {
           input: {
             transcription: { model: "gpt-4o-mini-transcribe" },
             turn_detection: {
               type: "server_vad",
               threshold: 0.5,
-              prefix_padding_ms: 200,
-              silence_duration_ms: 250,
+              prefix_padding_ms: 150,
+              silence_duration_ms: 200,
               create_response: true,
               interrupt_response: true,
             },

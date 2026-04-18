@@ -15,12 +15,10 @@ import {
   type TimelinePoint,
 } from "./slide/types";
 import { DraggableBoba, type BobaState } from "./boba";
-import {
-  startRealtime,
-  type RealtimeConfig,
-  type RealtimeSession,
-} from "./realtime";
+import { startRealtime, type RealtimeSession } from "./realtime";
+import { getSavedTraitId, loadTraits, type Trait } from "./traits";
 import { TranscriptSidebar, type TranscriptEntry } from "./Transcript";
+import { Captions } from "./Captions";
 import { searchMedia } from "./media/searchMedia";
 import { playSfx } from "./sfx";
 
@@ -47,10 +45,13 @@ export function Teleprompter() {
     if (bobaLaughTimer.current) clearTimeout(bobaLaughTimer.current);
     bobaLaughTimer.current = setTimeout(() => setBobaOverride(null), 5000);
   }, []);
-  const temperament =
-    ((typeof localStorage !== "undefined" &&
-      localStorage.getItem("teleprompter:temperament")) ||
-      "playful") as RealtimeConfig["temperament"];
+  const [trait, setTrait] = useState<Trait | null>(null);
+  useEffect(() => {
+    loadTraits().then((list) => {
+      const id = getSavedTraitId();
+      setTrait(list.find((t) => t.id === id) ?? list[0] ?? null);
+    });
+  }, []);
 
   const { slide: devSlide, mode, hidden } = useDevSlide();
 
@@ -72,10 +73,6 @@ export function Teleprompter() {
         setRealSlide((prev) => ({
           ...prev,
           content: nextContent,
-          background:
-            prev.content.type !== nextContent.type
-              ? { type: "none" }
-              : prev.background,
         }));
         return { ok: true };
       }
@@ -146,7 +143,10 @@ export function Teleprompter() {
             setPartial((prev) => prev + text);
           }
         },
-        { temperament },
+        {
+          traitInstruction: trait?.instruction,
+          traitName: trait?.name,
+        },
       );
       setSession(s);
       setStartedAt(Date.now());
@@ -224,7 +224,7 @@ export function Teleprompter() {
           <NumberFlow value={secs} format={{ minimumIntegerDigits: 2 }} />
         </Pill>
         <Pill className="text-mute tracking-[0.16em] uppercase text-[13px]">
-          mode · {temperament}
+          mode · {trait?.name ?? "…"}
         </Pill>
       </div>
 
@@ -268,21 +268,8 @@ export function Teleprompter() {
         </button>
       </DraggableBoba>
 
-      {/* Bottom center: subtitle (latest final + live partial) */}
-      {(entries.length > 0 || partial) && (
-        <div className="absolute bottom-[52px] left-1/2 z-20 flex w-[round(90%,1px)] max-w-[1000px] -translate-x-1/2 flex-col items-center gap-1.5">
-          {entries.length > 0 && (
-            <div className="text-center text-[22px] leading-[30px] font-medium tracking-[-0.005em] text-fg/55">
-              {entries[entries.length - 1].text}
-            </div>
-          )}
-          {partial && (
-            <div className="text-center text-2xl leading-8 font-medium tracking-[-0.005em] text-fg">
-              {partial}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Bottom center: TikTok-style rolling captions */}
+      <Captions entries={entries} partial={partial} />
 
       {error && (
         <div className="absolute bottom-2 left-1/2 z-40 -translate-x-1/2 text-sm text-accent">

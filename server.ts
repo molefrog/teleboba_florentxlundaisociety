@@ -50,8 +50,24 @@ app.get("/api/giphy", async (c) => {
 });
 
 // ---------- BRAVE IMAGE SEARCH ----------
+// Brave Free plan allows 1 req/s. We serialize calls to upstream with ~1.2s
+// spacing so rapid-fire agent calls don't pile up into 429s. Cache hits skip
+// the queue entirely.
 const braveCache = new Map<string, { at: number; data: unknown }>();
 const BRAVE_TTL_MS = 1000 * 60 * 10;
+const BRAVE_SPACING_MS = 1200;
+let braveChain: Promise<void> = Promise.resolve();
+let braveLastAt = 0;
+
+function queueBraveSlot(): Promise<void> {
+  const prev = braveChain;
+  braveChain = prev.then(async () => {
+    const wait = Math.max(0, braveLastAt + BRAVE_SPACING_MS - Date.now());
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    braveLastAt = Date.now();
+  });
+  return braveChain;
+}
 
 app.get("/api/brave/images", async (c) => {
   const q = c.req.query("q")?.trim();
@@ -66,6 +82,8 @@ app.get("/api/brave/images", async (c) => {
   if (cached && Date.now() - cached.at < BRAVE_TTL_MS) {
     return c.json({ cached: true, ...(cached.data as object) });
   }
+
+  await queueBraveSlot();
 
   const url = new URL("https://api.search.brave.com/res/v1/images/search");
   url.searchParams.set("q", q);
