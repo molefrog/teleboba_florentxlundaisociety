@@ -5,16 +5,9 @@ import { Timeline } from "./content/Timeline";
 import type { ContentSpec } from "./types";
 
 function contentKey(spec: ContentSpec): string {
-  switch (spec.type) {
-    case "none":
-      return "none";
-    case "text":
-      return `text:${spec.text}`;
-    case "timeline":
-      return `timeline:${spec.points.length}`;
-    case "alternatives":
-      return `alternatives:${spec.items.length}`;
-  }
+  // Key only on content *type* — data-level changes are animated inside each
+  // component, without unmounting the outer slide.
+  return spec.type;
 }
 
 const TRANSITION = {

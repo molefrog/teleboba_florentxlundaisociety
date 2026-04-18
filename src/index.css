@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Shrikhand&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;1,400&family=Shrikhand&display=swap");
 
 @font-face {
   font-family: "Graphik";
@@ -41,7 +41,7 @@
   --font-sans:
     "Graphik", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-serif:
-    "Playfair Display", "Iowan Old Style", Georgia, "Times New Roman", serif;
+    "Instrument Serif", "Iowan Old Style", Georgia, "Times New Roman", serif;
   --font-silly: "Shrikhand", "Comic Sans MS", cursive;
 
   --animate-emoji-rain: emoji-rain var(--emoji-rain-duration, 3s) linear both;

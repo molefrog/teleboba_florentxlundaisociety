@@ -7,6 +7,7 @@ import { cn } from "./lib/cn";
 import { DevPanelUI, useDevSlide } from "./DevPanel";
 import { SlideRenderer } from "./slide/SlideRenderer";
 import type { Slide } from "./slide/types";
+import { DraggableBoba } from "./boba";
 import { startRealtime, type RealtimeSession } from "./realtime";
 import { TranscriptSidebar, type TranscriptEntry } from "./Transcript";
 
@@ -17,6 +18,7 @@ export function Teleprompter() {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [session, setSession] = useState<RealtimeSession | null>(null);
+  const [starting, setStarting] = useState(false);
   const [partial, setPartial] = useState("");
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
@@ -39,6 +41,7 @@ export function Teleprompter() {
 
   const handleStart = async () => {
     setError("");
+    setStarting(true);
     try {
       const s = await startRealtime(
         async (name, args) => {
@@ -69,6 +72,8 @@ export function Teleprompter() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -78,6 +83,7 @@ export function Teleprompter() {
     setStartedAt(null);
     setPartial("");
     setStatus("idle");
+    setStarting(false);
   };
 
   const toggleTranscript = useCallback(() => setTranscriptOpen((v) => !v), []);
@@ -104,6 +110,8 @@ export function Teleprompter() {
   const elapsed = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
+
+  const bobaBaseState = session || starting ? "listening" : "sleeping";
 
   // Merge: in fake mode everything comes from Leva; in real mode, the
   // current phrase from realtime drives a text content; bg/fx still from
@@ -172,52 +180,21 @@ export function Teleprompter() {
         </button>
       </div>
 
-      {/* Bottom-left: pause button + agent chip */}
-      <div className="absolute bottom-7 left-7 z-30 flex items-center gap-3">
+      {/* Draggable Boba with play/pause dock */}
+      <DraggableBoba baseState={bobaBaseState}>
         <button
           onClick={session ? handleStop : handleStart}
-          className="grid size-20 cursor-pointer place-items-center rounded-full border border-[#1211100F] bg-fg-soft text-bg shadow-md shadow-black/40 transition-all hover:bg-fg hover:shadow-lg active:scale-95"
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={session ? "pause" : "play"}
+          className="absolute right-0 bottom-0 grid size-14 cursor-pointer place-items-center rounded-full border border-[#1211100F] bg-fg-soft text-bg shadow-md shadow-black/40 transition-all hover:bg-fg hover:shadow-lg active:scale-95"
         >
           {session ? (
-            <Pause size={30} strokeWidth={1.6} fill="currentColor" />
+            <Pause size={22} strokeWidth={1.6} fill="currentColor" />
           ) : (
-            <Play size={30} strokeWidth={1.6} fill="currentColor" />
+            <Play size={22} strokeWidth={1.6} fill="currentColor" />
           )}
         </button>
-
-        <div className="flex items-center gap-4 rounded-full border border-[#F1ECE224] bg-card-2 py-3.5 pr-6 pl-3.5">
-          <div className="relative grid size-[52px] place-items-center rounded-full bg-accent">
-            <svg width="30" height="26" viewBox="0 0 26 22" fill="none">
-              <circle cx="8" cy="9" r="2.2" fill="#121110" />
-              <circle cx="18" cy="9" r="2.2" fill="#121110" />
-              <path
-                d="M9 15 Q13 18, 17 15"
-                stroke="#121110"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                fill="none"
-              />
-            </svg>
-            <div
-              className={cn(
-                "absolute -top-0.5 -right-0.5 size-3.5 rounded-full border-[2.5px] border-card",
-                live ? "bg-[#5EC27A]" : "bg-mute",
-              )}
-            />
-          </div>
-          <div className="flex flex-col gap-[3px]">
-            <div className="text-[10px] leading-3 font-medium tracking-[0.2em] text-mute uppercase">
-              teleboba
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="text-[17px] leading-[22px] font-medium text-fg">
-                {live ? "listening…" : status}
-              </div>
-              {live && <WaveBars />}
-            </div>
-          </div>
-        </div>
-      </div>
+      </DraggableBoba>
 
       {/* Bottom center: subtitle (latest final + live partial) */}
       {(entries.length > 0 || partial) && (
@@ -273,17 +250,3 @@ function Pill({
   );
 }
 
-function WaveBars() {
-  const heights = [7, 14, 9, 16, 5, 11];
-  return (
-    <div className="flex h-4 items-center gap-[2.5px]">
-      {heights.map((h, i) => (
-        <div
-          key={i}
-          style={{ height: `${h}px` }}
-          className="w-[2.5px] shrink-0 rounded-[1px] bg-fg"
-        />
-      ))}
-    </div>
-  );
-}

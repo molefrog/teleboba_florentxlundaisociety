@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "./lib/cn";
-import { Boba, BOBA_STATES, type BobaState } from "./Boba";
+import { Boba, BOBA_STATES, type BobaState } from "./boba";
 
 interface GiphyItem {
   id: string;

@@ -46,7 +46,7 @@ export function Alternatives({
             )}
             <div
               className={cn(
-                "text-[clamp(2rem,4.5vw,3.5rem)] font-semibold tracking-[-0.02em] leading-[1]",
+                "text-[clamp(2.5rem,6vw,5rem)] font-semibold tracking-[-0.025em] leading-[0.95]",
                 isSelected ? "text-accent" : "text-fg",
               )}
             >
@@ -56,10 +56,10 @@ export function Alternatives({
               layout="position"
               transition={{ type: "spring", stiffness: 260, damping: 30 }}
               className={cn(
-                "leading-[1.3] font-semibold tracking-[-0.015em]",
+                "leading-[1.25] font-semibold tracking-[-0.015em]",
                 isSelected
-                  ? "text-[clamp(1.75rem,2.6vw,2.5rem)] text-fg"
-                  : "text-[clamp(1.25rem,1.6vw,1.625rem)] text-fg/70",
+                  ? "text-[clamp(2.25rem,3.4vw,3.25rem)] text-fg"
+                  : "text-[clamp(1.625rem,2.2vw,2.25rem)] text-fg/70",
               )}
             >
               {item.text}
